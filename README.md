@@ -103,7 +103,7 @@ Cette stack déploie 3 services interconnectés :
 
 ---
 
-## 🐧 Installation — Linux
+## 🐧 Installation sur Linux
 
 ### Étape 1 : Installer Docker
 
@@ -173,7 +173,7 @@ Passez à la section [Déploiement](#-déploiement).
 
 ---
 
-## 🪟 Installation — Windows
+## 🪟 Installation sur Windows
 
 ### Étape 1 : Installer Docker Desktop
 
@@ -222,7 +222,7 @@ Passez à la section [Déploiement](#-déploiement).
 
 ```bash
 # Option A : Cloner avec Git
-git clone <URL_DU_REPO> ollama-rag-stack
+git clone https://github.com/delferiermaxime-cmd/ollama-rag-stack.git ollama-rag-stack
 cd ollama-rag-stack
 
 # Option B : Télécharger et extraire manuellement
@@ -233,7 +233,8 @@ cd ollama-rag-stack
 
 ```bash
 # Copier le fichier d'exemple
-cp .env.example .env
+cp env.example .env
+cat .env (pour vérifier)
 
 # Éditez .env selon vos besoins (optionnel, les valeurs par défaut fonctionnent)
 # Linux : nano .env
