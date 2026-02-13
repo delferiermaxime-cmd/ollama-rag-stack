@@ -229,15 +229,11 @@ services:
     # AnythingLLM dépend des deux autres services
     # On utilise service_started au lieu de service_healthy car les healthchecks
     # curl ne fonctionnent pas dans les conteneurs Ollama/Qdrant
-    # Un délai de 45 secondes dans l'entrypoint permet aux services de démarrer
     depends_on:
       ollama:
         condition: service_started
       qdrant:
         condition: service_started
-
-    # Ajout d'un délai avant le démarrage pour laisser Ollama et Qdrant s'initialiser
-    entrypoint: ["/bin/sh", "-c", "sleep 45 && exec node /app/server/index.js"]
 
     environment:
       # ---------------------------------------------------------------
