@@ -106,20 +106,6 @@ services:
     networks:
       - rag-network
 
-    # Vérification de santé (healthcheck)
-    # Docker vérifie régulièrement que le service répond correctement
-    healthcheck:
-      # Appel à l'endpoint de base d'Ollama
-      test: ["CMD-SHELL", "curl -f http://localhost:11434/ || exit 1"]
-      # Délai avant le premier check (laisser le temps au service de démarrer)
-      start_period: 60s
-      # Intervalle entre chaque vérification
-      interval: 30s
-      # Temps maximum d'attente pour une réponse
-      timeout: 10s
-      # Nombre d'échecs avant de marquer le service comme "unhealthy"
-      retries: 5
-
   # ---------------------------------------------------------------------------
   # SERVICE 2 : OLLAMA-INIT - Téléchargement automatique des modèles
   # ---------------------------------------------------------------------------
@@ -133,20 +119,21 @@ services:
 
     container_name: ollama-init
 
-    # Le service dépend d'Ollama et attend qu'il soit "healthy"
-    # Cela garantit qu'Ollama est prêt avant de tenter les téléchargements
+    # Le service dépend d'Ollama et attend qu'il soit démarré
+    # On utilise service_started au lieu de service_healthy car les healthchecks
+    # curl ne fonctionnent pas dans les conteneurs Ollama/Qdrant (curl non installé)
     depends_on:
       ollama:
-        condition: service_healthy
+        condition: service_started
 
     # Monte le script d'initialisation dans le conteneur
     # Le flag :ro (read-only) empêche toute modification accidentelle
     volumes:
       - ./scripts/init-models.sh:/init-models.sh:ro
 
-    # Exécute le script d'initialisation
-    # Le script contient la liste des modèles à télécharger
-    entrypoint: ["/bin/sh", "/init-models.sh"]
+    # Exécute le script d'initialisation avec une attente avant de démarrer
+    # Le sleep 30 laisse le temps à Ollama de démarrer complètement
+    entrypoint: ["/bin/sh", "-c", "sleep 30 && /bin/sh /init-models.sh"]
 
     # Variables d'environnement utilisées par le script
     environment:
@@ -203,13 +190,9 @@ services:
     networks:
       - rag-network
 
-    # Healthcheck via l'endpoint de santé de Qdrant
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
-      start_period: 45s
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # Note : Healthcheck retiré car curl n'est pas disponible dans l'image Qdrant
+    # Le service fonctionne correctement sans healthcheck, AnythingLLM
+    # utilise service_started au lieu de service_healthy
 
   # ---------------------------------------------------------------------------
   # SERVICE 4 : ANYTHINGLLM - Interface web RAG tout-en-un
@@ -244,12 +227,17 @@ services:
       - anythingllm_data:/app/server/storage
 
     # AnythingLLM dépend des deux autres services
-    # Il attend que Ollama ET Qdrant soient en bonne santé
+    # On utilise service_started au lieu de service_healthy car les healthchecks
+    # curl ne fonctionnent pas dans les conteneurs Ollama/Qdrant
+    # Un délai de 45 secondes dans l'entrypoint permet aux services de démarrer
     depends_on:
       ollama:
-        condition: service_healthy
+        condition: service_started
       qdrant:
-        condition: service_healthy
+        condition: service_started
+
+    # Ajout d'un délai avant le démarrage pour laisser Ollama et Qdrant s'initialiser
+    entrypoint: ["/bin/sh", "-c", "sleep 45 && exec node /app/server/index.js"]
 
     environment:
       # ---------------------------------------------------------------
@@ -315,11 +303,3 @@ services:
 
     networks:
       - rag-network
-
-    # Healthcheck via l'endpoint API d'AnythingLLM
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3001/api/ping || exit 1"]
-      start_period: 45s
-      interval: 30s
-      timeout: 10s
-      retries: 5
