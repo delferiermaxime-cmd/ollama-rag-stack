@@ -1,0 +1,59 @@
+# =============================================================================
+# CONFIGURATION QDRANT - Base de données vectorielle
+# =============================================================================
+# Ce fichier configure les paramètres avancés de Qdrant.
+# Il est monté dans le conteneur à /qdrant/config/production.yaml
+#
+# Documentation complète :
+#   https://qdrant.tech/documentation/guides/configuration/
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Configuration du service
+# ---------------------------------------------------------------------------
+service:
+  # Adresse et port d'écoute HTTP (API REST)
+  host: "0.0.0.0"
+  http_port: 6333
+
+  # Port gRPC (protocole binaire, plus performant pour les gros volumes)
+  grpc_port: 6334
+
+  # Active les métriques Prometheus (utile pour le monitoring)
+  # Accessible sur http://localhost:6333/metrics
+  enable_tls: false
+
+# ---------------------------------------------------------------------------
+# Configuration du stockage
+# ---------------------------------------------------------------------------
+storage:
+  # Répertoire principal de stockage des données
+  storage_path: /qdrant/storage
+
+  # Répertoire pour les snapshots (sauvegardes)
+  snapshots_path: /qdrant/storage/snapshots
+
+  # ---------------------------------------------------------------------------
+  # Optimiseurs - Paramètres de performance
+  # ---------------------------------------------------------------------------
+  optimizers:
+    # Nombre de segments à merger simultanément
+    # Plus élevé = indexation plus rapide, mais plus de RAM utilisée
+    default_segment_number: 2
+
+    # Seuil (en Ko) à partir duquel l'index est sauvegardé sur disque
+    # Plus bas = sauvegardes plus fréquentes (plus sûr mais plus lent)
+    flush_interval_sec: 5
+
+  # ---------------------------------------------------------------------------
+  # Performance I/O
+  # ---------------------------------------------------------------------------
+  performance:
+    # Nombre de threads pour les opérations d'optimisation
+    # 0 = auto-détection basée sur le nombre de cœurs CPU
+    max_optimization_threads: 0
+
+# ---------------------------------------------------------------------------
+# Configuration du logging
+# ---------------------------------------------------------------------------
+log_level: INFO

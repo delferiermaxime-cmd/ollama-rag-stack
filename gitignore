@@ -1,0 +1,22 @@
+# =============================================================================
+# GITIGNORE - Fichiers à exclure du contrôle de version
+# =============================================================================
+
+# Fichier de configuration local (contient des secrets !)
+.env
+
+# Données Docker (ne devraient pas être dans le repo)
+data/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

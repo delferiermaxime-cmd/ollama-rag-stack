@@ -1,0 +1,55 @@
+# =============================================================================
+# DOCKER COMPOSE - Override GPU NVIDIA
+# =============================================================================
+# Ce fichier est un "override" qui ajoute le support GPU NVIDIA au service
+# Ollama défini dans docker-compose.yml.
+#
+# IMPORTANT : Ce fichier ne fonctionne PAS seul. Il doit être utilisé
+#             en combinaison avec le fichier principal :
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# Prérequis GPU :
+#   - Linux  : NVIDIA Container Toolkit (nvidia-ctk) installé
+#   - Windows: Docker Desktop avec support GPU WSL2 activé
+#
+# Vérification rapide :
+#   docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Override du service Ollama pour activer le GPU
+  # ---------------------------------------------------------------------------
+  ollama:
+    # Donne accès à TOUTES les cartes GPU NVIDIA du système
+    # Pour limiter à un GPU spécifique, utilisez :
+    #   - driver: nvidia
+    #     count: 1              → Utilise 1 seul GPU
+    #     device_ids: ['0']     → Utilise le GPU n°0 spécifiquement
+    #     capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # "all" = utiliser toutes les cartes GPU disponibles
+              # Remplacez par count: 1 si vous avez plusieurs GPU
+              # et ne voulez en utiliser qu'un seul
+              count: all
+              capabilities: [gpu]
+
+    environment:
+      # Hérite des variables du fichier principal +
+      # Variables spécifiques au GPU :
+
+      # Nombre de couches du modèle à charger sur le GPU
+      # -1 = TOUTES les couches sur GPU (recommandé si assez de VRAM)
+      # Un nombre positif = nombre de couches sur GPU, le reste sur CPU
+      - OLLAMA_GPU_LAYERS=${OLLAMA_GPU_LAYERS:--1}
+
+      # Adresse d'écoute (doit être redéfinie car environment remplace tout)
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-1}
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-300}
