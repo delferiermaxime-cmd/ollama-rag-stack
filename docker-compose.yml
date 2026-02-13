@@ -1,10 +1,6 @@
 # =============================================================================
 # DOCKER COMPOSE - Stack RAG complète : Ollama + Qdrant + AnythingLLM
 # =============================================================================
-# Auteur       : Assistant IA
-# Description  : Ce fichier orchestre 3 services principaux + 1 service d'init
-#                pour créer une stack RAG (Retrieval-Augmented Generation) locale.
-#
 # Services :
 #   1. ollama        → Serveur d'inférence LLM local (port 11434)
 #   2. qdrant        → Base de données vectorielle (ports 6333/6334)
@@ -14,288 +10,127 @@
 # Utilisation :
 #   - CPU uniquement  : docker compose up -d
 #   - Avec GPU NVIDIA : docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-#
-# Prérequis :
-#   - Docker Engine 20.10+ et Docker Compose V2
-#   - 16 Go de RAM minimum recommandés
-#   - ~40 Go d'espace disque pour les modèles
 # =============================================================================
 
-# -------------------------------------------------------
-# FICHIER D'ENVIRONNEMENT
-# -------------------------------------------------------
-# Les variables sont chargées depuis le fichier .env
-# Copiez .env.example vers .env avant le premier lancement
-
-# =============================================================================
-# DÉFINITION DES VOLUMES PERSISTANTS
-# =============================================================================
-# Les volumes Docker permettent de conserver les données entre les redémarrages.
-# Sans volumes, tout serait perdu à chaque "docker compose down".
 volumes:
-  # Stocke les modèles Ollama téléchargés (~5-15 Go selon les modèles)
   ollama_data:
     name: ollama_data
-
-  # Stocke les collections et index vectoriels de Qdrant
   qdrant_data:
     name: qdrant_data
-
-  # Stocke les configurations et données d'AnythingLLM
   anythingllm_data:
     name: anythingllm_data
 
-# =============================================================================
-# RÉSEAU INTERNE
-# =============================================================================
-# Tous les services communiquent sur un réseau Docker isolé.
-# Cela évite les conflits avec d'autres conteneurs et améliore la sécurité.
 networks:
   rag-network:
     name: rag-network
     driver: bridge
 
-# =============================================================================
-# DÉFINITION DES SERVICES
-# =============================================================================
 services:
 
   # ---------------------------------------------------------------------------
   # SERVICE 1 : OLLAMA - Serveur d'inférence LLM
   # ---------------------------------------------------------------------------
-  # Ollama permet d'exécuter des modèles de langage en local.
-  # Il expose une API REST compatible OpenAI sur le port 11434.
-  # Documentation : https://github.com/ollama/ollama
-  # ---------------------------------------------------------------------------
   ollama:
-    # Image officielle Ollama depuis Docker Hub
     image: ollama/ollama:${OLLAMA_VERSION:-latest}
-
-    # Nom explicite du conteneur pour faciliter le débogage
     container_name: ollama
-
-    # Redémarrage automatique sauf si arrêté manuellement
-    # Valeurs possibles : no | always | on-failure | unless-stopped
     restart: unless-stopped
-
-    # Ports exposés sur la machine hôte
-    # Format : "port_hote:port_conteneur"
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
-
-    # Volume pour persister les modèles téléchargés
-    # /root/.ollama est le répertoire par défaut d'Ollama dans le conteneur
     volumes:
       - ollama_data:/root/.ollama
-
-    # Variables d'environnement pour configurer Ollama
     environment:
-      # Nombre de modèles chargés simultanément en mémoire
-      # Augmentez si vous avez beaucoup de RAM (défaut: 1)
       - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-1}
-
-      # Durée avant déchargement d'un modèle inactif (en secondes)
-      # "0" = ne jamais décharger, "-1" = décharger immédiatement
       - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-300}
-
-      # Adresse d'écoute du serveur Ollama
-      # 0.0.0.0 permet l'accès depuis les autres conteneurs
       - OLLAMA_HOST=0.0.0.0
-
-    # Rattachement au réseau interne
     networks:
       - rag-network
 
   # ---------------------------------------------------------------------------
   # SERVICE 2 : OLLAMA-INIT - Téléchargement automatique des modèles
   # ---------------------------------------------------------------------------
-  # Ce service éphémère (one-shot) attend qu'Ollama soit prêt, puis télécharge
-  # tous les modèles définis dans le script init-models.sh.
-  # Il s'arrête automatiquement une fois le téléchargement terminé.
-  # ---------------------------------------------------------------------------
   ollama-init:
-    # On utilise une image légère avec curl pour les requêtes HTTP
     image: curlimages/curl:latest
-
     container_name: ollama-init
-
-    # Le service dépend d'Ollama et attend qu'il soit démarré
-    # On utilise service_started au lieu de service_healthy car les healthchecks
-    # curl ne fonctionnent pas dans les conteneurs Ollama/Qdrant (curl non installé)
     depends_on:
       ollama:
         condition: service_started
-
-    # Monte le script d'initialisation dans le conteneur
-    # Le flag :ro (read-only) empêche toute modification accidentelle
     volumes:
       - ./scripts/init-models.sh:/init-models.sh:ro
-
-    # Exécute le script d'initialisation avec une attente avant de démarrer
-    # Le sleep 30 laisse le temps à Ollama de démarrer complètement
     entrypoint: ["/bin/sh", "-c", "sleep 30 && /bin/sh /init-models.sh"]
-
-    # Variables d'environnement utilisées par le script
     environment:
-      # URL interne d'Ollama (nom du service Docker = hostname)
       - OLLAMA_BASE_URL=http://ollama:11434
-
-    # Même réseau que les autres services
     networks:
       - rag-network
-
-    # restart: "no" signifie que ce conteneur ne redémarre pas
-    # C'est un service "one-shot" : il fait son travail et s'arrête
     restart: "no"
 
   # ---------------------------------------------------------------------------
   # SERVICE 3 : QDRANT - Base de données vectorielle
   # ---------------------------------------------------------------------------
-  # Qdrant stocke et recherche des vecteurs d'embedding.
-  # C'est le cœur de la fonctionnalité RAG : il permet de retrouver
-  # les documents les plus pertinents par similarité sémantique.
-  #
-  # Ports :
-  #   - 6333 : API REST (HTTP)
-  #   - 6334 : API gRPC (plus performant pour les gros volumes)
-  #
-  # Documentation : https://qdrant.tech/documentation/
-  # ---------------------------------------------------------------------------
   qdrant:
     image: qdrant/qdrant:${QDRANT_VERSION:-latest}
-
     container_name: qdrant
-
     restart: unless-stopped
-
     ports:
-      # API REST - pour les requêtes HTTP classiques
       - "${QDRANT_REST_PORT:-6333}:6333"
-      # API gRPC - protocole binaire plus rapide
       - "${QDRANT_GRPC_PORT:-6334}:6334"
-
     volumes:
-      # Données persistantes de Qdrant (collections, index, snapshots)
       - qdrant_data:/qdrant/storage
-
-      # Configuration personnalisée de Qdrant (optionnelle)
-      # Le fichier config.yaml permet d'ajuster les paramètres avancés
-      - ./config/qdrant/config.yaml:/qdrant/config/production.yaml:ro
-
-    environment:
-      # Clé API pour sécuriser l'accès à Qdrant (optionnelle)
-      # Si définie, toutes les requêtes doivent inclure cette clé
-      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}
-
     networks:
       - rag-network
-
-    # Note : Healthcheck retiré car curl n'est pas disponible dans l'image Qdrant
-    # Le service fonctionne correctement sans healthcheck, AnythingLLM
-    # utilise service_started au lieu de service_healthy
+    # Pas d'authentification pour l'environnement local
 
   # ---------------------------------------------------------------------------
   # SERVICE 4 : ANYTHINGLLM - Interface web RAG tout-en-un
   # ---------------------------------------------------------------------------
-  # AnythingLLM est une interface graphique qui permet de :
-  #   - Discuter avec des LLM (via Ollama)
-  #   - Uploader des documents (PDF, TXT, DOCX, etc.)
-  #   - Créer des espaces de travail (workspaces) avec RAG
-  #   - Gérer les embeddings et la base vectorielle (Qdrant)
-  #
-  # Port : 3001 (interface web accessible via navigateur)
-  # Documentation : https://docs.anythingllm.com/
-  # ---------------------------------------------------------------------------
   anythingllm:
     image: mintplexlabs/anythingllm:${ANYTHINGLLM_VERSION:-latest}
-
     container_name: anythingllm
-
     restart: unless-stopped
-
-    # AnythingLLM nécessite SYS_ADMIN pour certaines opérations internes
-    # (gestion des processus enfants pour le traitement de documents)
     cap_add:
       - SYS_ADMIN
-
     ports:
-      # Interface web accessible à http://localhost:3001
       - "${ANYTHINGLLM_PORT:-3001}:3001"
-
     volumes:
-      # Données persistantes d'AnythingLLM (config, documents uploadés, etc.)
       - anythingllm_data:/app/server/storage
-
-    # AnythingLLM dépend des deux autres services
-    # On utilise service_started au lieu de service_healthy car les healthchecks
-    # curl ne fonctionnent pas dans les conteneurs Ollama/Qdrant
     depends_on:
       ollama:
         condition: service_started
       qdrant:
         condition: service_started
-
     environment:
-      # ---------------------------------------------------------------
-      # Configuration du fournisseur LLM (Ollama)
-      # ---------------------------------------------------------------
-      # Indique à AnythingLLM d'utiliser Ollama comme backend LLM
+      # Configuration LLM (Ollama)
       - LLM_PROVIDER=ollama
-      # URL interne d'Ollama (communication inter-conteneurs)
       - OLLAMA_BASE_PATH=http://ollama:11434
-      # Modèle LLM par défaut pour les conversations
       - OLLAMA_MODEL_PREF=${DEFAULT_LLM_MODEL:-llama3.1:latest}
-      # Taille maximale du contexte du modèle (en tokens)
       - OLLAMA_MODEL_TOKEN_LIMIT=${MODEL_TOKEN_LIMIT:-8192}
 
-      # ---------------------------------------------------------------
-      # Configuration du fournisseur d'embedding
-      # ---------------------------------------------------------------
-      # Utilise Ollama aussi pour les embeddings
+      # Configuration Embedding (Ollama)
       - EMBEDDING_ENGINE=ollama
       - EMBEDDING_BASE_PATH=http://ollama:11434
-      # Modèle d'embedding par défaut
       - EMBEDDING_MODEL_PREF=${DEFAULT_EMBEDDING_MODEL:-nomic-embed-text:latest}
-      # Taille maximale des chunks pour le découpage des documents
       - EMBEDDING_MODEL_MAX_CHUNK_LENGTH=${EMBEDDING_CHUNK_LENGTH:-8192}
 
-      # ---------------------------------------------------------------
-      # Configuration de la base vectorielle (Qdrant)
-      # ---------------------------------------------------------------
+      # Configuration Vector Database (Qdrant)
       - VECTOR_DB=qdrant
-      # URL interne de Qdrant
       - QDRANT_ENDPOINT=http://qdrant:6333
-      # Clé API Qdrant (doit correspondre à QDRANT__SERVICE__API_KEY)
-      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      # PAS de clé API pour Qdrant en local
 
-      # ---------------------------------------------------------------
       # Sécurité AnythingLLM
-      # ---------------------------------------------------------------
-      # Mot de passe pour protéger l'accès à l'interface web (optionnel)
-      # Si non défini, l'interface sera accessible sans authentification
       - AUTH_TOKEN=${ANYTHINGLLM_AUTH_TOKEN:-}
+      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
 
-      # Token JWT pour les requêtes API (optionnel)
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-me}
-
-      # ---------------------------------------------------------------
-      # Stockage des documents
-      # ---------------------------------------------------------------
+      # Stockage
       - STORAGE_DIR=/app/server/storage
 
-      # ---------------------------------------------------------------
-      # Multi-utilisateurs & Confidentialité (optionnel)
-      # ---------------------------------------------------------------
-      # Désactive la vue de l'historique de chat des autres utilisateurs
-      # Décommentez la ligne dans .env pour activer
+      # Multi-utilisateurs (optionnel)
       - DISABLE_VIEW_CHAT_HISTORY=${DISABLE_VIEW_CHAT_HISTORY:-}
-
-      # SSO Simple : permet l'auth via lien temporaire (avancé)
-      - SIMPLE_SSO_ENABLED=${SIMPLE_SSO_ENABLED:-}
-      - SIMPLE_SSO_NO_LOGIN=${SIMPLE_SSO_NO_LOGIN:-}
-
-      # Durée de validité des sessions
       - JWT_EXPIRY=${JWT_EXPIRY:-7d}
 
     networks:
       - rag-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/api/ping || exit 1"]
+      start_period: 30s
+      interval: 30s
+      timeout: 10s
+      retries: 5
