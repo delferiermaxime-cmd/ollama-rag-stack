@@ -52,12 +52,12 @@ llama3.1:latest
 llama3:8b
 glm-4.7-flash:latest
 qwen3-vl:8b
-nomic-embed-text:latest
 bge-m3:latest
 bge-m3:567m
 embeddinggemma:300m
 deepseek-r1:14b
 glm4:9b
+qwen3-embedding:8b
 "
 
 # =============================================================================
