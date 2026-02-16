@@ -56,6 +56,8 @@ nomic-embed-text:latest
 bge-m3:latest
 bge-m3:567m
 embeddinggemma:300m
+deepseek-r1:14b
+glm4:9b
 "
 
 # =============================================================================
