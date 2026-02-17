@@ -49,15 +49,10 @@ OLLAMA_URL="${OLLAMA_BASE_URL:-http://ollama:11434}"
 
 MODELS="
 llama3.1:latest
-llama3:8b
-glm-4.7-flash:latest
 qwen3-vl:8b
-bge-m3:latest
 bge-m3:567m
-embeddinggemma:300m
 deepseek-r1:14b
 glm4:9b
-qwen3-embedding:8b
 gemma3:27b
 "
 
